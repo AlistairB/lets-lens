@@ -1,4 +1,6 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Lets.OpticPolyLens (
   Lens(..)
@@ -74,8 +76,8 @@ set ::
   -> s
   -> b
   -> t
-set (Lens r) a b =
-  getIdentity (r (const (Identity b)) a)
+set (Lens r) s b =
+  getIdentity (r (const (Identity b)) s)
 
 -- | The get/set law of lenses. This function should always return @True@.
 getsetLaw ::
@@ -103,7 +105,7 @@ setsetLaw ::
   -> s
   -> b
   -> b
-  -> Bool 
+  -> Bool
 setsetLaw l a b1 b2 =
   set l (set l a b1) b2 == set l a b2
 
@@ -125,8 +127,8 @@ modify ::
   -> (a -> b)
   -> s
   -> t
-modify =
-  error "todo: modify"
+modify (Lens r) f s =
+  getIdentity (r (Identity .f) s)
 
 -- | An alias for @modify@.
 (%~) ::
@@ -155,8 +157,7 @@ infixr 4 %~
   -> b
   -> s
   -> t
-(.~) =
-  error "todo: (.~)"
+(.~) l b s = set l s b
 
 infixl 5 .~
 
@@ -175,9 +176,8 @@ fmodify ::
   Lens s t a b
   -> (a -> f b)
   -> s
-  -> f t 
-fmodify =
-  error "todo: fmodify"
+  -> f t
+fmodify (Lens r) = r
 
 -- |
 --
@@ -192,8 +192,8 @@ fmodify =
   -> f b
   -> s
   -> f t
-(|=) =
-  error "todo: (|=)"
+(|=) (Lens r) fb = r (const fb)
+
 
 infixl 5 |=
 
@@ -210,7 +210,7 @@ infixl 5 |=
 fstL ::
   Lens (a, x) (b, x) a b
 fstL =
-  error "todo: fstL"
+  Lens $ \k (a, x) -> (,x) <$> k a
 
 -- |
 --
@@ -225,7 +225,7 @@ fstL =
 sndL ::
   Lens (x, a) (x, b) a b
 sndL =
-  error "todo: sndL"
+  Lens $ \k (x, a) -> (x,) <$> k a
 
 -- |
 --
@@ -250,8 +250,12 @@ mapL ::
   Ord k =>
   k
   -> Lens (Map k v) (Map k v) (Maybe v) (Maybe v)
-mapL =
-  error "todo: mapL"
+mapL key =
+  Lens $ \k inputMap -> flip fmap (k (Map.lookup key inputMap)) $
+    \case
+      (Just v) -> Map.insert key v inputMap
+      Nothing  -> Map.delete key inputMap
+
 
 -- |
 --
@@ -276,8 +280,11 @@ setL ::
   Ord k =>
   k
   -> Lens (Set k) (Set k) Bool Bool
-setL =
-  error "todo: setL"
+setL v =
+  Lens $ \k inputSet -> flip fmap (k (Set.member v inputSet)) $
+  \case
+    True -> Set.insert v inputSet
+    False -> Set.delete v inputSet
 
 -- |
 --
@@ -290,8 +297,8 @@ compose ::
   Lens s t a b
   -> Lens q r s t
   -> Lens q r a b
-compose =
-  error "todo: compose"
+compose (Lens r) (Lens r') =
+  Lens $ r' . r
 
 -- | An alias for @compose@.
 (|.) ::
@@ -313,7 +320,7 @@ infixr 9 |.
 identity ::
   Lens a b a b
 identity =
-  error "todo: identity"
+  Lens $ \k a -> k a
 
 -- |
 --
@@ -326,8 +333,7 @@ product ::
   Lens s t a b
   -> Lens q r c d
   -> Lens (s, q) (t, r) (a, c) (b, d)
-product =
-  error "todo: product"
+product = undefined
 
 -- | An alias for @product@.
 (***) ::
@@ -493,7 +499,7 @@ setCityAndLocality ::
   (Person, Address) -> (String, Locality) -> (Person, Address)
 setCityAndLocality =
   error "todo: setCityAndLocality"
-  
+
 -- |
 --
 -- >>> getSuburbOrCity (Left maryAddress)
